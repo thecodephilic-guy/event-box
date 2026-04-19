@@ -36,7 +36,7 @@ func (app *application) createEventHandler(w http.ResponseWriter, r *http.Reques
 	}
 
 	v := validator.New()
-	if data.ValidateEvent(v, event); !v.Valid() {
+	if data.ValidateNewEvent(v, event); !v.Valid() {
 		app.failedValidationResponse(w, r, v.Errors)
 		return
 	}

@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"errors"
 	"time"
+
+	"github.com/lib/pq"
 )
 
 var (
@@ -65,7 +67,8 @@ func (m BookingModel) Insert(booking *Booking) error {
 	err = tx.QueryRowContext(ctx, insertQuery, booking.EventID, booking.CustomerID).Scan(&booking.ID, &booking.CreatedAt)
 	if err != nil {
 		// Catch the unique constraint violation (Customer booking same event twice)
-		if err.Error() == `pq: duplicate key value violates unique constraint "bookings_event_id_customer_id_key"` {
+		var pqErr *pq.Error
+		if errors.As(err, &pqErr) && pqErr.Code == "23505" {
 			return ErrAlreadyBooked
 		}
 		return err
@@ -87,6 +90,41 @@ func (m BookingModel) GetForCustomer(customerID int64) ([]*Booking, error) {
 	defer cancel()
 
 	rows, err := m.DB.QueryContext(ctx, query, customerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	bookings := []*Booking{}
+	for rows.Next() {
+		var booking Booking
+		err := rows.Scan(&booking.ID, &booking.CreatedAt, &booking.EventID, &booking.CustomerID)
+		if err != nil {
+			return nil, err
+		}
+		bookings = append(bookings, &booking)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return bookings, nil
+}
+
+// GetForOrganizer retrieves all bookings for events owned by a specific organizer.
+func (m BookingModel) GetForOrganizer(organizerID int64) ([]*Booking, error) {
+	query := `
+		SELECT b.id, b.created_at, b.event_id, b.customer_id
+		FROM bookings b
+		INNER JOIN events e ON b.event_id = e.id
+		WHERE e.organizer_id = $1
+		ORDER BY b.created_at DESC`
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	rows, err := m.DB.QueryContext(ctx, query, organizerID)
 	if err != nil {
 		return nil, err
 	}

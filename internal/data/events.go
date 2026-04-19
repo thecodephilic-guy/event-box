@@ -22,6 +22,7 @@ type Event struct {
 	Version          int       `json:"version"`
 }
 
+// ValidateEvent performs general field validation (used for updates).
 func ValidateEvent(v *validator.Validator, event *Event) {
 	v.Check(event.Title != "", "title", "must be provided")
 	v.Check(len(event.Title) <= 255, "title", "must not be more than 255 bytes long")
@@ -29,11 +30,16 @@ func ValidateEvent(v *validator.Validator, event *Event) {
 	v.Check(event.Description != "", "description", "must be provided")
 
 	v.Check(!event.Date.IsZero(), "date", "must be a valid date")
-	v.Check(event.Date.After(time.Now()), "date", "must be in the future")
 
 	v.Check(event.TotalTickets > 0, "total_tickets", "must be greater than zero")
 	v.Check(event.AvailableTickets >= 0, "available_tickets", "must not be negative")
 	v.Check(event.AvailableTickets <= event.TotalTickets, "available_tickets", "cannot exceed total tickets")
+}
+
+// ValidateNewEvent performs full validation including the future-date constraint (used for creation).
+func ValidateNewEvent(v *validator.Validator, event *Event) {
+	ValidateEvent(v, event)
+	v.Check(event.Date.After(time.Now()), "date", "must be in the future")
 }
 
 type EventModel struct {

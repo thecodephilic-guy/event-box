@@ -58,7 +58,17 @@ func (app *application) createBookingHandler(w http.ResponseWriter, r *http.Requ
 func (app *application) listBookingsHandler(w http.ResponseWriter, r *http.Request) {
 	user := app.contextGetUser(r)
 
-	bookings, err := app.models.Bookings.GetForCustomer(user.ID)
+	var bookings []*data.Booking
+	var err error
+
+	// Customers see their own bookings, Organizers see bookings for their events
+	switch user.Role {
+	case "organizer":
+		bookings, err = app.models.Bookings.GetForOrganizer(user.ID)
+	default:
+		bookings, err = app.models.Bookings.GetForCustomer(user.ID)
+	}
+
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
